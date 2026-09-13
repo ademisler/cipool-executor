@@ -40,7 +40,7 @@ COMMAND="$(json_field command)"
 JOB="$(json_field job)"
 GITHUB_TOKEN="$(json_field githubToken)"
 
-if [[ ! "$REPOSITORY" =~ ^ademisler/[A-Za-z0-9_.-]+$ ]]; then
+if [[ ! "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   echo "CI Pool rejected repository scope" >&2
   exit 66
 fi
