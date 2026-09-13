@@ -1,0 +1,40 @@
+version: 2.1
+
+parameters:
+  cipool_run_id:
+    type: string
+    default: "manual"
+  cipool_job:
+    type: string
+    default: "smoke-pass"
+  cipool_repository:
+    type: string
+    default: ""
+  cipool_sha:
+    type: string
+    default: ""
+  cipool_branch:
+    type: string
+    default: "main"
+
+jobs:
+  execute:
+    docker:
+      - image: cimg/base:stable
+    resource_class: small
+    environment:
+      CIPOOL_RUN_ID: << pipeline.parameters.cipool_run_id >>
+      CIPOOL_JOB: << pipeline.parameters.cipool_job >>
+      CIPOOL_REPOSITORY: << pipeline.parameters.cipool_repository >>
+      CIPOOL_SHA: << pipeline.parameters.cipool_sha >>
+      CIPOOL_BRANCH: << pipeline.parameters.cipool_branch >>
+    steps:
+      - checkout
+      - run:
+          name: CI Pool executor
+          command: ./run.sh
+
+workflows:
+  ci-pool:
+    jobs:
+      - execute
