@@ -1,45 +1,130 @@
 version: 2.1
 
 parameters:
-  cipool_run_id:
-    type: string
-    default: ""
-  cipool_ticket:
-    type: string
-    default: ""
-  cipool_broker_url:
-    type: string
-    default: ""
-  cipool_job:
-    type: string
-    default: ""
-  cipool_repository:
-    type: string
-    default: ""
-  cipool_sha:
-    type: string
-    default: ""
-  cipool_branch:
-    type: string
-    default: ""
+  cipool_run_id: { type: string, default: "" }
+  cipool_job: { type: string, default: "" }
+  cipool_repository: { type: string, default: "" }
+  cipool_sha: { type: string, default: "" }
+  cipool_branch: { type: string, default: "" }
+  cipool_base_sha: { type: string, default: "" }
+  cipool_profile: { type: string, default: "light" }
+  cipool_runtime: { type: string, default: "node22" }
+  cipool_job_spec_hash: { type: string, default: "" }
+  cipool_executor_revision: { type: string, default: "" }
+  cipool_broker_url: { type: string, default: "https://ci.ademisler.com" }
 
-jobs:
-  execute:
-    docker:
-      - image: cimg/node:lts
-    resource_class: small
+commands:
+  execute_cipool:
     steps:
       - checkout
       - run:
-          name: CI Pool executor
-          command: |
-            chmod +x ./scripts/execute.sh
-            ./scripts/execute.sh \
-              '<< pipeline.parameters.cipool_run_id >>' \
-              '<< pipeline.parameters.cipool_ticket >>' \
-              '<< pipeline.parameters.cipool_broker_url >>'
+          name: OIDC lease, secure exact-SHA checkout, and execute
+          # The parent executor emits a bounded heartbeat while target work runs.
+          # Five minutes of total silence now means checkout/lease/executor itself is stuck.
+          no_output_timeout: 5m
+          command: /bin/bash scripts/execute.sh
+          environment:
+            CIPOOL_RUN_ID: << pipeline.parameters.cipool_run_id >>
+            CIPOOL_EXPECTED_JOB: << pipeline.parameters.cipool_job >>
+            CIPOOL_EXPECTED_REPOSITORY: << pipeline.parameters.cipool_repository >>
+            CIPOOL_EXPECTED_SHA: << pipeline.parameters.cipool_sha >>
+            CIPOOL_EXPECTED_BRANCH: << pipeline.parameters.cipool_branch >>
+            CIPOOL_EXPECTED_BASE_SHA: << pipeline.parameters.cipool_base_sha >>
+            CIPOOL_EXPECTED_PROFILE: << pipeline.parameters.cipool_profile >>
+            CIPOOL_EXPECTED_RUNTIME: << pipeline.parameters.cipool_runtime >>
+            CIPOOL_EXPECTED_JOB_SPEC_HASH: << pipeline.parameters.cipool_job_spec_hash >>
+            CIPOOL_EXECUTOR_REVISION: << pipeline.parameters.cipool_executor_revision >>
+            CIPOOL_BROKER_URL: << pipeline.parameters.cipool_broker_url >>
+      - store_test_results:
+          path: /tmp/cipool/test-results
+      - store_artifacts:
+          path: /tmp/cipool/artifacts
+          destination: cipool
+
+jobs:
+  light-node22:
+    docker:
+      - image: cimg/node:22.23.2
+    resource_class: medium
+    steps: [{ execute_cipool: {} }]
+  standard-node22:
+    docker:
+      - image: cimg/node:22.23.2
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
+  standard-node24:
+    docker:
+      - image: cimg/node:24.18.0
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
+  standard-python312:
+    docker:
+      - image: cimg/python:3.12.12-node
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
+  standard-rust195:
+    docker:
+      - image: cimg/rust:1.95.0
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
+  heavy-machine:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large.gen2
+    steps: [{ execute_cipool: {} }]
+  machine-heavy:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large.gen2
+    steps: [{ execute_cipool: {} }]
 
 workflows:
-  execute:
-    jobs:
-      - execute
+  cipool-light-node22:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["light", << pipeline.parameters.cipool_profile >>]
+        - equal: ["node22", << pipeline.parameters.cipool_runtime >>]
+    jobs: [light-node22]
+  cipool-standard-node22:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["node22", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-node22]
+  cipool-standard-node24:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["node24", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-node24]
+  cipool-standard-python312:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["python312", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-python312]
+  cipool-standard-rust195:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["rust195", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-rust195]
+  cipool-heavy-machine:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["heavy", << pipeline.parameters.cipool_profile >>]
+        - equal: ["machine", << pipeline.parameters.cipool_runtime >>]
+    jobs: [heavy-machine]
+  cipool-machine-heavy:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["machine-heavy", << pipeline.parameters.cipool_profile >>]
+        - equal: ["machine", << pipeline.parameters.cipool_runtime >>]
+    jobs: [machine-heavy]
