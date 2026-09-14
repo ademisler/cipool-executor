@@ -62,6 +62,11 @@ jobs:
       - image: cimg/python:3.12.12-node
     resource_class: large
     steps: [{ execute_cipool: {} }]
+  standard-python313:
+    docker:
+      - image: cimg/python:3.13.5-node
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
   standard-rust195:
     docker:
       - image: cimg/rust:1.95.0
@@ -107,6 +112,13 @@ workflows:
         - equal: ["standard", << pipeline.parameters.cipool_profile >>]
         - equal: ["python312", << pipeline.parameters.cipool_runtime >>]
     jobs: [standard-python312]
+  cipool-standard-python313:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["python313", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-python313]
   cipool-standard-rust195:
     when:
       and:
