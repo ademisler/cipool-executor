@@ -125,7 +125,10 @@ python3 - "$CIPOOL_CHECKOUT_DIR" "$runtime" "$cache_key" <<'PY_CACHE'
 import hashlib, pathlib, sys
 root=pathlib.Path(sys.argv[1]); runtime=sys.argv[2]; out=pathlib.Path(sys.argv[3])
 if runtime in {"node22","playwright162"}:
-    rels=["pnpm-lock.yaml"]
+    node_locks=["pnpm-lock.yaml","package-lock.json","npm-shrinkwrap.json","yarn.lock","bun.lock","bun.lockb"]
+    rels=[rel for rel in node_locks if (root/rel).is_file()]
+    if not rels:
+        raise SystemExit("dependency fingerprint source missing: Node lockfile")
 elif runtime in {"rust195","persistence17"}:
     rels=["Cargo.lock"]
 elif runtime=="validator1":

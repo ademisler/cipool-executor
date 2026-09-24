@@ -48,6 +48,7 @@ commands:
           key: cipool-v2-<< pipeline.parameters.cipool_runtime >>-{{ checksum "/tmp/cipool/cache-key" }}-<< pipeline.parameters.cipool_executor_revision >>
           paths:
             - ~/.cache/pnpm/store
+            - ~/.npm/_cacache
             - ~/.cargo/registry
             - ~/.cargo/git
             - ~/.m2/repository
