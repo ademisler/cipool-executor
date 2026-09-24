@@ -10,6 +10,7 @@ parameters:
   cipool_profile: { type: string, default: "light" }
   cipool_runtime: { type: string, default: "node22" }
   cipool_job_spec_hash: { type: string, default: "" }
+  cipool_cache_namespace: { type: string, default: "" } # legacy rollout compatibility; intentionally ignored
   cipool_executor_revision: { type: string, default: "" }
   cipool_broker_url: { type: string, default: "https://ci.ademisler.com" }
 
