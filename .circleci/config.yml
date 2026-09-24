@@ -12,6 +12,7 @@ parameters:
   cipool_job_spec_hash: { type: string, default: "" }
   cipool_cache_namespace: { type: string, default: "" } # legacy rollout compatibility; intentionally ignored
   cipool_parallel_enabled: { type: boolean, default: false } # enabled only after shard-aware broker rollout
+  cipool_browser_fast_sharding_enabled: { type: boolean, default: false } # staged separately for zero-downtime browser-fast rollout
   cipool_executor_revision: { type: string, default: "" }
   cipool_broker_url: { type: string, default: "https://ci.ademisler.com" }
 
@@ -183,8 +184,13 @@ workflows:
         - equal: ["standard", << pipeline.parameters.cipool_profile >>]
         - equal: ["playwright162", << pipeline.parameters.cipool_runtime >>]
         - or:
-            - not: { equal: ["browser", << pipeline.parameters.cipool_job >>] }
+            - and:
+                - not: { equal: ["browser", << pipeline.parameters.cipool_job >>] }
+                - not: { equal: ["browser-fast", << pipeline.parameters.cipool_job >>] }
             - equal: [false, << pipeline.parameters.cipool_parallel_enabled >>]
+            - and:
+                - equal: ["browser-fast", << pipeline.parameters.cipool_job >>]
+                - equal: [false, << pipeline.parameters.cipool_browser_fast_sharding_enabled >>]
     jobs: [standard-playwright162]
   cipool-standard-playwright162-browser:
     when:
@@ -194,6 +200,16 @@ workflows:
         - equal: ["playwright162", << pipeline.parameters.cipool_runtime >>]
         - equal: ["browser", << pipeline.parameters.cipool_job >>]
         - equal: [true, << pipeline.parameters.cipool_parallel_enabled >>]
+    jobs: [standard-playwright162-browser]
+  cipool-standard-playwright162-browser-fast:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["playwright162", << pipeline.parameters.cipool_runtime >>]
+        - equal: ["browser-fast", << pipeline.parameters.cipool_job >>]
+        - equal: [true, << pipeline.parameters.cipool_parallel_enabled >>]
+        - equal: [true, << pipeline.parameters.cipool_browser_fast_sharding_enabled >>]
     jobs: [standard-playwright162-browser]
   cipool-standard-validator1:
     when:
