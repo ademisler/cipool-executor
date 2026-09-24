@@ -53,9 +53,13 @@ with open(lease_path, encoding="utf-8") as handle:
     data = json.load(handle)
 if data.get("version") != 2:
     raise SystemExit("Enhanced executor requires a v2 OIDC lease")
-parallelism = data.get("parallelism") or {}
-if parallelism.get("index") != int(expected_index) or parallelism.get("total") != int(expected_total):
-    raise SystemExit("OIDC lease parallel coordinates do not match this CircleCI executor")
+parallelism = data.get("parallelism")
+if parallelism is None:
+    if int(expected_index) != 0 or int(expected_total) != 1:
+        raise SystemExit("Legacy broker cannot authorize parallel CircleCI executors")
+else:
+    if parallelism.get("index") != int(expected_index) or parallelism.get("total") != int(expected_total):
+        raise SystemExit("OIDC lease parallel coordinates do not match this CircleCI executor")
 required = {
     "repository": data["repository"], "sha": data["source"]["sha"],
     "branch": data["source"]["branch"], "base_sha": data["source"].get("baseSha") or "",
