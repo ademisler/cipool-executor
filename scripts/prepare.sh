@@ -31,21 +31,31 @@ rm -rf -- "$CIPOOL_ROOT"
 mkdir -p "$CIPOOL_LEASE_DIR" "$CIPOOL_CHECKOUT_DIR" "$CIPOOL_ARTIFACT_DIR" "$CIPOOL_TEST_RESULTS_DIR"
 chmod 700 "$CIPOOL_ROOT" "$CIPOOL_LEASE_DIR" "$CIPOOL_CHECKOUT_DIR" "$CIPOOL_ARTIFACT_DIR" "$CIPOOL_TEST_RESULTS_DIR"
 
+node_index="$(printenv CIRCLE_NODE_INDEX 2>/dev/null || printf 0)"
+node_total="$(printenv CIRCLE_NODE_TOTAL 2>/dev/null || printf 1)"
+[[ "$node_index" =~ ^[0-9]+$ && "$node_total" =~ ^[1-9][0-9]*$ && "$node_index" -lt "$node_total" && "$node_total" -le 16 ]] || {
+  echo "Invalid CircleCI parallel executor coordinates" >&2; exit 66;
+}
+
+lease_payload="$(printf '{"runId":"%s","nodeIndex":%s,"nodeTotal":%s}' "$CIPOOL_RUN_ID" "$node_index" "$node_total")"
 lease_file="$CIPOOL_LEASE_DIR/lease.json"
 curl --fail-with-body --silent --show-error --max-time 30 \
-  -H "Authorization: Bearer ${CIRCLE_OIDC_TOKEN_V2}" \
+  -H "Authorization: Bearer $CIRCLE_OIDC_TOKEN_V2" \
   -H 'Content-Type: application/json' \
-  --data "{\"runId\":\"${CIPOOL_RUN_ID}\"}" \
+  --data "$lease_payload" \
   "$CIPOOL_BROKER_URL/v1/runner/lease" >"$lease_file"
 chmod 600 "$lease_file"
 
-python3 - "$lease_file" "$CIPOOL_LEASE_DIR" "$CIPOOL_INPUTS_FILE" <<'PY'
+python3 - "$lease_file" "$CIPOOL_LEASE_DIR" "$CIPOOL_INPUTS_FILE" "$node_index" "$node_total" <<'PY'
 import json, os, pathlib, sys
-lease_path, output_dir, inputs_path = sys.argv[1:]
+lease_path, output_dir, inputs_path, expected_index, expected_total = sys.argv[1:]
 with open(lease_path, encoding="utf-8") as handle:
     data = json.load(handle)
 if data.get("version") != 2:
     raise SystemExit("Enhanced executor requires a v2 OIDC lease")
+parallelism = data.get("parallelism") or {}
+if parallelism.get("index") != int(expected_index) or parallelism.get("total") != int(expected_total):
+    raise SystemExit("OIDC lease parallel coordinates do not match this CircleCI executor")
 required = {
     "repository": data["repository"], "sha": data["source"]["sha"],
     "branch": data["source"]["branch"], "base_sha": data["source"].get("baseSha") or "",

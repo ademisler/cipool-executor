@@ -102,6 +102,11 @@ jobs:
     docker:
       - image: app.invoicerig.com/invoicerig-ci-validator@sha256:3e71d116f611f6e8efab281757fa27ab0f48025fefeb59cfeb9d0c1c41d6b2f7
     resource_class: large
+    steps: [{ execute_cipool: {} }]
+  standard-validator1-sharded:
+    docker:
+      - image: app.invoicerig.com/invoicerig-ci-validator@sha256:3e71d116f611f6e8efab281757fa27ab0f48025fefeb59cfeb9d0c1c41d6b2f7
+    resource_class: large
     parallelism: 4
     steps: [{ execute_cipool: {} }]
   standard-persistence17:
@@ -190,7 +195,16 @@ workflows:
         - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
         - equal: ["standard", << pipeline.parameters.cipool_profile >>]
         - equal: ["validator1", << pipeline.parameters.cipool_runtime >>]
+        - not: { equal: ["validator", << pipeline.parameters.cipool_job >>] }
     jobs: [standard-validator1]
+  cipool-standard-validator1-sharded:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["validator1", << pipeline.parameters.cipool_runtime >>]
+        - equal: ["validator", << pipeline.parameters.cipool_job >>]
+    jobs: [standard-validator1-sharded]
   cipool-standard-persistence17:
     when:
       and:
