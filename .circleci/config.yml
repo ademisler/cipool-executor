@@ -18,11 +18,9 @@ commands:
     steps:
       - checkout
       - run:
-          name: OIDC lease, secure exact-SHA checkout, and execute
-          # The parent executor emits a bounded heartbeat while target work runs.
-          # Five minutes of total silence now means checkout/lease/executor itself is stuck.
+          name: Secure lease and exact-SHA prepare
           no_output_timeout: 5m
-          command: /bin/bash scripts/execute.sh
+          command: /bin/bash scripts/prepare.sh
           environment:
             CIPOOL_RUN_ID: << pipeline.parameters.cipool_run_id >>
             CIPOOL_EXPECTED_JOB: << pipeline.parameters.cipool_job >>
@@ -35,6 +33,23 @@ commands:
             CIPOOL_EXPECTED_JOB_SPEC_HASH: << pipeline.parameters.cipool_job_spec_hash >>
             CIPOOL_EXECUTOR_REVISION: << pipeline.parameters.cipool_executor_revision >>
             CIPOOL_BROKER_URL: << pipeline.parameters.cipool_broker_url >>
+      - restore_cache:
+          keys:
+            - cipool-v2-<< pipeline.parameters.cipool_runtime >>-{{ checksum "/tmp/cipool/cache-key" }}-<< pipeline.parameters.cipool_executor_revision >>
+      - run:
+          name: Execute exact-SHA workload
+          no_output_timeout: 5m
+          command: /bin/bash scripts/execute.sh
+          environment:
+            CIPOOL_RUN_ID: << pipeline.parameters.cipool_run_id >>
+      - save_cache:
+          key: cipool-v2-<< pipeline.parameters.cipool_runtime >>-{{ checksum "/tmp/cipool/cache-key" }}-<< pipeline.parameters.cipool_executor_revision >>
+          paths:
+            - ~/.cache/pnpm/store
+            - ~/.cargo/registry
+            - ~/.cargo/git
+            - ~/.m2/repository
+            - ~/.cache/invoicerig/artifacts
       - store_test_results:
           path: /tmp/cipool/test-results
       - store_artifacts:
@@ -44,32 +59,59 @@ commands:
 jobs:
   light-node22:
     docker:
-      - image: cimg/node:22.23.2
+      - image: cimg/node:22.23.2@sha256:7c78a95e25876729c2c9cada532b0636fd3ec7dbae922b3d90d83704f4c87639
     resource_class: medium
     steps: [{ execute_cipool: {} }]
   standard-node22:
     docker:
-      - image: cimg/node:22.23.2
+      - image: cimg/node:22.23.2@sha256:7c78a95e25876729c2c9cada532b0636fd3ec7dbae922b3d90d83704f4c87639
     resource_class: large
     steps: [{ execute_cipool: {} }]
   standard-node24:
     docker:
-      - image: cimg/node:24.18.0
+      - image: cimg/node:24.18.0@sha256:4a638ad75f8601fec1f193e71df584639e6accb1771cea23f3d9d3857bca480c
     resource_class: large
     steps: [{ execute_cipool: {} }]
   standard-python312:
     docker:
-      - image: cimg/python:3.12.12-node
+      - image: cimg/python:3.12.12-node@sha256:7999ae1810ec45e91500d1fa656288339af75394cf8789175898670837d51033
     resource_class: large
     steps: [{ execute_cipool: {} }]
   standard-python313:
     docker:
-      - image: cimg/python:3.13.5-node
+      - image: cimg/python:3.13.5-node@sha256:d0bc8cfb6fa384b571d1da56afeb6620e989e3f4b7c5d0922c508090870a25b2
     resource_class: large
     steps: [{ execute_cipool: {} }]
   standard-rust195:
     docker:
-      - image: cimg/rust:1.95.0
+      - image: cimg/rust:1.95.0@sha256:3289fa7c7faafb9f8b809ce3d777c069cf53298e4ef944437b63955b70d724ef
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
+  standard-playwright162:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+    resource_class: large
+    steps: [{ execute_cipool: {} }]
+  standard-playwright162-browser:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
+    resource_class: large
+    parallelism: 2
+    steps: [{ execute_cipool: {} }]
+  standard-validator1:
+    docker:
+      - image: app.invoicerig.com/invoicerig-ci-validator@sha256:3e71d116f611f6e8efab281757fa27ab0f48025fefeb59cfeb9d0c1c41d6b2f7
+    resource_class: large
+    parallelism: 4
+    steps: [{ execute_cipool: {} }]
+  standard-persistence17:
+    docker:
+      - image: app.invoicerig.com/invoicerig-ci-persistence@sha256:088e7c986b1a28b3399d0a25bf87054b89a111595ebfac6ff095710d61aaa9b7
+      - image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+        environment:
+          POSTGRES_USER: invoicerig
+          POSTGRES_PASSWORD: invoicerig
+          POSTGRES_DB: invoicerig_test
     resource_class: large
     steps: [{ execute_cipool: {} }]
   heavy-machine:
@@ -126,6 +168,36 @@ workflows:
         - equal: ["standard", << pipeline.parameters.cipool_profile >>]
         - equal: ["rust195", << pipeline.parameters.cipool_runtime >>]
     jobs: [standard-rust195]
+  cipool-standard-playwright162:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["playwright162", << pipeline.parameters.cipool_runtime >>]
+        - not: { equal: ["browser", << pipeline.parameters.cipool_job >>] }
+    jobs: [standard-playwright162]
+  cipool-standard-playwright162-browser:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["playwright162", << pipeline.parameters.cipool_runtime >>]
+        - equal: ["browser", << pipeline.parameters.cipool_job >>]
+    jobs: [standard-playwright162-browser]
+  cipool-standard-validator1:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["validator1", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-validator1]
+  cipool-standard-persistence17:
+    when:
+      and:
+        - not: { equal: ["", << pipeline.parameters.cipool_run_id >>] }
+        - equal: ["standard", << pipeline.parameters.cipool_profile >>]
+        - equal: ["persistence17", << pipeline.parameters.cipool_runtime >>]
+    jobs: [standard-persistence17]
   cipool-heavy-machine:
     when:
       and:
